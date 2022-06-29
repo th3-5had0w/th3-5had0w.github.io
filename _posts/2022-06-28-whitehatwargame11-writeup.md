@@ -410,6 +410,7 @@ __int64 __fastcall accessor_reader(int *a1, int a2)
 Mỗi lần thực hiện chức năng write yêu cầu ta nhập index i để chọn vị trí lưu trữ và cấp phát cho ta một chunk có size là 0x40 (malloc(0x30) sẽ được round-up lên 0x40) rồi cho ta nhập data vào chunk đó. Nếu index i thỏa điều kiện (i >= 0 và i < n với n là số lượng note ta nhập lúc đầu):
 - Nếu tại index i đã lưu trữ một con trỏ khác tạm gọi là con trỏ A thì vùng bộ nhớ mà con trỏ A trỏ đến sẽ được thu hồi, rồi chương trình sẽ thay thế con trỏ A tại index i bằng con trỏ trỏ đến vùng bộ nhớ mới được cấp phát cho ta ở trên.
 - Nếu tại index i chưa lưu trữ con trỏ nào thì chương trình sẽ lưu trữ con trỏ trỏ đến vùng bộ nhớ mới được cấp phát cho ta ở trên vào index i.
+
 Nếu index i không thỏa điều kiện thì bộ nhớ được cấp phát cho phép ta nhập dữ liệu vào sẽ được thu hồi và không có thay đổi nào tại index i.
 ```c
 v8 = read_int("Index: ");
