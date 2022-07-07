@@ -39,11 +39,11 @@ description_footer: I love flags 🚩
 # google_analytics_id: UA-72449510-4 # google 分析追踪id
 
 # Build settings
-markdown: kramdown
+#markdown: kramdown
 
-kramdown:
-  input: GFM
-  #syntax_highlighter: rouge
+#kramdown:
+#  input: GFM
+#  syntax_highlighter: rouge
 
 # port
 # port: 1234
