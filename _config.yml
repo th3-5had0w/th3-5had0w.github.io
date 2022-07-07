@@ -41,9 +41,9 @@ description_footer: I love flags 🚩
 # Build settings
 #markdown: kramdown
 
-#kramdown:
-#  input: GFM
-#  syntax_highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
 
 # port
 # port: 1234
