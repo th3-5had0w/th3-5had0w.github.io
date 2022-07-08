@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Writeup Whitehat Wargame 11"
-categories: binary
+categories: writeup
 tags: binary pwn
 author: th3_5had0w
 mathjax: true

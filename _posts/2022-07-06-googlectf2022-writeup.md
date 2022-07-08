@@ -1,8 +1,8 @@
 ---
 layout: post
 title:  "Writeup GoogleCTF 2022"
-categories: hardware
-tags: hardware binary pwn
+categories: writeup
+tags: hardware binary pwn web
 author: th3_5had0w
 mathjax: true
 ---
