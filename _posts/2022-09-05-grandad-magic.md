@@ -21,7 +21,7 @@ Vừa bắt đầu thì mình disassemble file với IDA như thường lệ, nh
 
 P/s: file challenge mình sẽ gọi là "image"
 
-![]()
+![](/assets/grandad11.png)
 
 ### Vật lộn với qemu và gdb
 
