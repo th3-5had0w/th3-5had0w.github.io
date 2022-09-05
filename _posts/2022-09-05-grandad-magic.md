@@ -27,13 +27,13 @@ P/s: file challenge mình sẽ gọi là "image"
 
 Dùng qemu để debug thì ta có được một màn hình chờ như thế này:
 
-![](../assets/grandad2.png)
+![](/assets/grandad2.png)
 
 Sau khi dùng qemu để emulate image mà đề bài đưa ra thì mình đã thử debug bằng gdb, nhưng thất bại thảm hại :D
 
 Không biết vì lý do gì nhưng debugger pass tất cả các breakpoint mà mình đã set, cho dù là sau khi BIOS đã load MBR vào địa chỉ 0x7c00, nói chung nhìn địa chỉ khá là loạn và cái lệnh jmp nhảy khắp nơi, khiến cho mình cũng không hiểu các instruction đang làm gì luôn 😢
 
-![](../assets/grandad1.png)
+![](/assets/grandad1.png)
 
 Sau khi thực hiện một loạt instruction như trên, image nhảy thẳng vào prompt để chờ user nhập input, mình không thể debug được, đã thử vô số các cách khác nhau nhưng đều thất bại thảm hại.
 
@@ -45,31 +45,31 @@ Sau gần 2 tiếng đồng hồ mở vô số tab trên chrome, lúc này mình
 
 Thay vì load trực tiếp image vào IDA, mình đã load image vào Bochs và chỉnh sửa lại config menu của Bochs.
 
-![](../assets/grandad4.png)
+![](/assets/grandad4.png)
 
 **Tab Floppy Options -> Type of floppy drive -> None**
 
-![](../assets/grandad5.png)
+![](/assets/grandad5.png)
 
 **Tab Boot options -> Boot drive #1 -> disk**
 
-![](../assets/grandad6.png)
+![](/assets/grandad6.png)
 
 **Tab ATA channel 0 -> First HD/CD on channel 0**
 
-![](../assets/grandad7.png)
+![](/assets/grandad7.png)
 
 **Ở phần Path or physical device name bạn chọn Browse và sau đó chọn image cần debug.**
 
 **Sau cùng là chỉnh các option Cylinders, Heads, Sectors per track như hình dưới**
 
-![](../assets/grandad8.png)
+![](/assets/grandad8.png)
 
 Sau đó export file config này ra ngoài, file config được export sẽ có extension là `.bxrc`
 
 Sau cùng là load file config này vào IDA, IDA sẽ tự nhận diện được đây là file Bochs config, và chạy thử thì:
 
-![](../assets/grandad9.png)
+![](/assets/grandad9.png)
 
 Đặt breakpoint ở đầu chương trình và step thì ta sẽ đến được phần hàm chính của chương trình:
 
@@ -169,8 +169,8 @@ debug002:E0ED int     13h
 
 Ở đây thì chương trình sau khi đọc password do ta nhập vào sẽ chạy một loạt các biểu thức toán học để kiểm tra, nếu input nhập vào thỏa mãn tất cả các điều kiện ta sẽ login được vào OS. Mình dùng z3 để giải các biểu thức này.
 
-![](../assets/grandad10.png)
+![](/assets/grandad10.png)
 
 Sau khi nhập password thì ta vào được OS chính và...
 
-![](../assets/grandad3.png)
+![](/assets/grandad3.png)
