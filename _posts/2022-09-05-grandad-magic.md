@@ -19,11 +19,11 @@ Lần đầu reverse mbr/dos image, setup debug với bochs và IDA
 
 Vừa bắt đầu thì mình disassemble file với IDA như thường lệ, nhưng vì đây là lần đầu reverse bootloader, nên mình không nhận ra hàm sub_151 và sub_177 là các hàm check điều kiện của flag (khá n0n...)
 
-P/s: file challenge mình sẽ gọi là "image"
+P/s: file challenge mình sẽ gọi là "image".
+
+P/s 2: bài này focus vào vụ setup môi trường debug, còn những dạng bài này bạn nào muốn nhanh thì dùng các module như Pintool, Angr, Qiling,... hay những cái tương tự.
 
 ![](/assets/grandad11.png)
-
-### Vật lộn với qemu và gdb
 
 Dùng qemu để debug thì ta có được một màn hình chờ như thế này:
 
@@ -39,9 +39,9 @@ Sau khi thực hiện một loạt instruction như trên, image nhảy thẳng 
 
 Vì vậy mình mò đi tìm cách khác để debug (trong vô vọng)...
 
-### Ánh sáng cuối đường hầm
-
 Sau gần 2 tiếng đồng hồ mở vô số tab trên chrome, lúc này mình vô tình thấy được một vài article và video có liên quan đến debug emulated image và ida bochs file, thì mình đã quyết định thử kết hợp kiến thức từ những article này lại.
+
+IDA có Bochs plugin có thể emulate được khá nhiều loại binary.
 
 Thay vì load trực tiếp image vào IDA, mình đã load image vào Bochs và chỉnh sửa lại config menu của Bochs.
 
