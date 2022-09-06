@@ -39,9 +39,9 @@ Sau khi thực hiện một loạt instruction như trên, image nhảy thẳng 
 
 Vì vậy mình mò đi tìm cách khác để debug (trong vô vọng)...
 
-Sau gần 2 tiếng đồng hồ mở vô số tab trên chrome, lúc này mình vô tình thấy được một vài article và video có liên quan đến debug emulated image và ida bochs file, thì mình đã quyết định thử kết hợp kiến thức từ những article này lại.
+Sau gần 2 tiếng đồng hồ mở vô số tab trên chrome, lúc này mình vô tình thấy được một vài article và video cổ đại có liên quan đến debug emulated image và ida bochs file, thì mình đã quyết định thử kết hợp kiến thức từ những article này lại.
 
-IDA có Bochs plugin có thể emulate được khá nhiều loại binary.
+IDA có Bochs plugin có lợi thế là emulate được khá nhiều các dạng executable, image, disk và binary khác nhau.
 
 Thay vì load trực tiếp image vào IDA, mình đã load image vào Bochs và chỉnh sửa lại config menu của Bochs.
 
