@@ -21,6 +21,8 @@ Truyện ngắn về anh công nhân dọn rác cần mẫn trong thế giới m
 
 
 
+Post này được viết dựa trên Linux kernel [5.15.88](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tag/?h=v5.15.88)
+
 # "Triết lý" cơ bản trong họ hàng nhà Unix?
 
 "Everything is a file" - họ nhà Unix coi tất cả mọi event xử lý I/O đều dưới dạng một "file". Có nghĩa là để giao tiếp hay thực hiện mọi event xử lý Input hay Output ví dụ như tương tác với các file text, hard-drives, modems, bàn phím, chuột, máy in, màn hình hay một số phương thức liên kết mạng, liên kết giữa các process với nhau (IPC) thì hệ thống Unix đều sẽ có một "file" để đứng ra làm "người đại diện" cho một event I/O nào đó. Hiểu đơn giản hơn là với mỗi một đơn vị I/O chịu trách nhiệm cho một phần nào đó mà có thể tương tác được thì đều sẽ có một "file" tương ứng đứng ra làm interface cho đơn vị I/O đó. Để hiểu rõ hơn hãy xem một số ví dụ ở phần đọc dưới.
