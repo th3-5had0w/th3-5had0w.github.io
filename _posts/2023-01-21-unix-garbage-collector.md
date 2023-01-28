@@ -571,7 +571,7 @@ void unix_inflight(struct user_struct *user, struct file *fp)
 }
 ```
 
-Sau khi tăng inflight count với mọi file descriptor sắp được gửi vào hàng đợi bên nhận, sk_buff struct sẽ được đưa sang cho bên nhận tại [pass1](#pass1) và [pass2](#pass2). Bên nhận sau đó có thể nhận bằng [__unix_dgram_recvmsg](https://elixir.bootlin.com/linux/v5.15.88/source/net/unix/af_unix.c#L2290) bằng việc [query tất cả các sk_buff struct được gửi từ bên gửi](https://elixir.bootlin.com/linux/v5.15.88/source/net/unix/af_unix.c#L2311). Sau khi bên nhận đã hoàn thành nhận hết các sk_buff ở trong hàng đợi thì giá trị inflight count cũng như total count (total count = f_count + inflight count) của các file descriptor sẽ giảm đi, vì lúc này quá trình gửi và nhận các file descriptor đã hoàn tất.
+Sau khi tăng inflight count với mọi file descriptor sắp được gửi vào hàng đợi bên nhận, sk_buff struct sẽ được đưa sang vào `sk_receive_queue` của bên nhận tại [pass1](#pass1) và [pass2](#pass2). Bên nhận sau đó có thể nhận bằng [__unix_dgram_recvmsg](https://elixir.bootlin.com/linux/v5.15.88/source/net/unix/af_unix.c#L2290) bằng việc [query tất cả các sk_buff struct được gửi từ bên gửi](https://elixir.bootlin.com/linux/v5.15.88/source/net/unix/af_unix.c#L2311). Sau khi bên nhận đã hoàn thành nhận hết các sk_buff ở trong hàng đợi thì giá trị inflight count cũng như total count (total count = f_count + inflight count) của các file descriptor sẽ giảm đi, vì lúc này quá trình gửi và nhận các file descriptor đã hoàn tất.
 
 Ví dụ một socketpair vào gồm phía A gửi và phía B nhận, khi A gửi chính file descriptor của nó cho B (A gửi nhưng B chưa nhận) thì giá trị total count và inflight count của 2 bên sẽ như hình sau:
 
@@ -579,13 +579,222 @@ Ví dụ một socketpair vào gồm phía A gửi và phía B nhận, khi A g�
 
 Nhưng hãy xét đến trường hợp A gửi file descriptor của A cho B, và ngược lại B cũng gửi file descriptor của B cho A. Nhưng tạm thời cả 2 bên đều chưa nhận data được gửi đến từ bên còn lại. Lúc này cả file struct của A lẫn B lúc này đều sẽ có giá trị total count là 2 (1 reference đến từ lúc mở socket ban đầu aka f_count = 1, 1 reference đến từ inflight count) và giá trị inflight count là 1.
 
+![](/assets/unix_gc_6.png)
+
 Ở đây nếu thực hiện tuần tự A nhận trước rồi B nhận (hoặc ngược lại), thì inflight count và total count của cả 2 file struct sau đó sẽ mang giá trị lần lượt là 0 và 1. Lúc này quá trình gửi và nhận data từ hai phía hoàn tất, sẽ không có vấn đề gì đáng lưu ý.
 
-> Nhưng nếu cả A lẫn B đều không nhận data được gửi đến mà thay vào đó lại invoke close()? Lúc này reference từ lúc mở socket ban đầu của file struct mà A và B sẽ giảm về 0, nhưng inflight count thì vẫn là 1 (vì cả 2 bên A và B đều chưa nhận dữ liệu ở trong queue mà đã invoke close() để unlink file descriptor khỏi `struct files_struct`). Vì thế trạng thái ở đây total count là 1 và inflight count là 1 nhưng cả 2 file struct này trên thực tế lại không còn được sử dụng nữa. Có thể kết luận đây là một trạng thái mà kernel vẫn còn giữ lại 2 vùng memory mà trên thực tế không thực hiện mục đích gì gây lãng phí resources của hệ thống.
+> Nhưng nếu cả A lẫn B đều không nhận data được gửi đến mà thay vào đó lại invoke close()? Lúc này reference từ lúc mở socket ban đầu của file struct mà A và B sẽ giảm về 0, nhưng inflight count thì vẫn là 1 (vì cả 2 bên A và B đều chưa nhận dữ liệu ở trong queue mà đã invoke close() để unlink file descriptor khỏi `struct files_struct`). Vì thế trạng thái ở đây total count là 1 và inflight count là 1 nhưng cả 2 file struct này trên thực tế lại không còn được sử dụng nữa. Có thể kết luận đây là một trạng thái mà kernel vẫn còn giữ lại 2 vùng memory mà trên thực tế không thực hiện mục đích gì gây lãng phí resources của hệ thống, trạng thái này được gọi unbreakable cycle.
 
-![](/assets/unix_gc_5.png)
+![](/assets/unix_gc_7.png)
 
 Nếu có tồn tại một hacker nào đó cố tình chạy chương trình thực hiện những hành động trên nhiều lần thì hệ thống sẽ hoàn toàn hết bộ nhớ (full RAM)? Here comes unix_gcccc!!!
 
+![](/assets/unix_gc_5.png)
+
 # Unix garbage collector?
 
+Sẽ được trigger khi số lượng inflight socket lớn hơn 16000 hoặc có một file struct nào đó có giá trị total count là 0. Và unix_gc sẽ được invoke một cách tuần tự (đảm bảo không có việc data race hay race condition khi nhiều session unix_gc chạy cùng lúc) bằng cách dùng biến check `gc_in_progress`:
+
+```cpp
+static bool gc_in_progress;
+#define UNIX_INFLIGHT_TRIGGER_GC 16000
+
+void wait_for_unix_gc(void)
+{
+	/* If number of inflight sockets is insane,
+	 * force a garbage collect right now.
+	 * Paired with the WRITE_ONCE() in unix_inflight(),
+	 * unix_notinflight() and gc_in_progress().
+	 */
+	if (READ_ONCE(unix_tot_inflight) > UNIX_INFLIGHT_TRIGGER_GC &&
+	    !READ_ONCE(gc_in_progress))
+		unix_gc();
+	wait_event(unix_gc_wait, gc_in_progress == false);
+}
+
+/* The external entry point: unix_gc() */
+void unix_gc(void)
+{
+
+
+.......REDACTED
+
+
+	/* Avoid a recursive GC. */
+	if (gc_in_progress)
+		goto out;
+
+	/* Paired with READ_ONCE() in wait_for_unix_gc(). */
+	WRITE_ONCE(gc_in_progress, true);
+
+
+.......REDACTED
+
+
+}
+```
+Bắt đầu quá trình clean up các vùng memory thừa thãi không cần thiết, unix_gc đầu tiên sẽ kiểm tra từ `gc_inflight_list` tất cả những inflight socket (những socket có số inflight count != 0), tất cả những socket nào có giá trị total count bằng với inflight count đều sẽ được đánh dấu và đưa vào hàng chờ là "candidate" để được clean up:
+
+```cpp
+
+
+.......REDACTED
+
+
+	list_for_each_entry_safe(u, next, &gc_inflight_list, link) {
+		long total_refs;
+		long inflight_refs;
+
+		total_refs = file_count(u->sk.sk_socket->file);
+		inflight_refs = atomic_long_read(&u->inflight);
+
+		BUG_ON(inflight_refs < 1);
+		BUG_ON(total_refs < inflight_refs);
+		if (total_refs == inflight_refs) {
+			list_move_tail(&u->link, &gc_candidates); // thêm socket vào gc_candidate queue
+			__set_bit(UNIX_GC_CANDIDATE, &u->gc_flags); // đánh dấu bằng bit UNIX_GC_CANDIDATE
+			__set_bit(UNIX_GC_MAYBE_CYCLE, &u->gc_flags); // đánh dấu bằng bit UNIX_GC_MAYBE_CYCLE cho biết có thể socket đang kẹt trong một unbreakable cycle
+		}
+	}
+
+
+.......REDACTED
+
+
+```
+
+Tiếp đến unix_gc sẽ check qua và giảm inflight count của các child socket của các socket đang nằm trong gc_candidate list (child socket của một socket nào đó ở đây là những socket đang nằm trong `sk_receive_queue` của socket đó) thông qua [scan_inflight](https://elixir.bootlin.com/linux/v5.15.88/source/net/unix/garbage.c#L91) được invoke trong [scan_children](https://elixir.bootlin.com/linux/v5.15.88/source/net/unix/garbage.c#L133).
+
+```cpp
+
+
+.......REDACTED
+
+
+	list_for_each_entry(u, &gc_candidates, link)
+		scan_children(&u->sk, dec_inflight, NULL);
+
+
+.......REDACTED
+
+
+```
+
+> Vì sao lại phải giảm giá trị inflight count của các child socket của các đang nằm trong gc_candidate list?
+>
+> Giảm inflight count để kiểm tra xem các socket nằm trong `gc_candidate` list có còn tồn tại một inflight reference nào đến từ một socket nào đó nằm ngoài `gc_candidate` list không. Theo những gì mình đã giải thích từ đầu bài đến giờ thì hãy thử lấy note ra và mô phỏng một vài sơ đồ hoạt động của các file struct cũng như inflight count thì sẽ hiểu rõ hơn.
+
+Sau khi giảm inflight count của các child socket của các socket trong `gc_candidate` list, unix_gc sẽ tiến hành kiểm tra xem những socket nào thuộc `gc_candidate` list còn giá trị inflight count > 0. Nếu vào lúc này một socket nào đó thuộc `gc_candidate` list (tạm gọi là R) có giá trị inflight count > 0 có nghĩa là socket R vẫn còn reference đến từ một socket nào đó không thuộc `gc_candidate` list, vậy socket R vẫn còn trong quá trình được sử dụng. Lúc này unix_gc sẽ đưa socket R vào `not_cycle_list`, clear bit `UNIX_GC_MAYBE_CYCLE` của R như một cách khẳng định R không thuộc "unbreakable cycle". Tiếp đến unix_gc sẽ tăng inflight count trở lại cho các child socket của socket R (ở đây có thể hiểu rằng nếu socket R vẫn còn trong quá trình sử dụng đồng nghĩa với việc các child socket của R vẫn có thể được sử dụng vào một thời điểm nào đó trong tương lai):
+
+```cpp
+
+
+.......REDACTED
+
+
+	/* Restore the references for children of all candidates,
+	 * which have remaining references.  Do this recursively, so
+	 * only those remain, which form cyclic references.
+	 *
+	 * Use a "cursor" link, to make the list traversal safe, even
+	 * though elements might be moved about.
+	 */
+	list_add(&cursor, &gc_candidates);
+	while (cursor.next != &gc_candidates) {
+		u = list_entry(cursor.next, struct unix_sock, link);
+
+		/* Move cursor to after the current position. */
+		list_move(&cursor, &u->link);
+
+		if (atomic_long_read(&u->inflight) > 0) {
+			list_move_tail(&u->link, &not_cycle_list);
+			__clear_bit(UNIX_GC_MAYBE_CYCLE, &u->gc_flags);
+			scan_children(&u->sk, inc_inflight_move_tail, NULL);
+		}
+	}
+	list_del(&cursor);
+
+
+.......REDACTED
+
+
+```
+
+Sau khi kiểm tra và đưa hết tất cả những socket vẫn còn trong  sử dụng từ `gc_candidate` qua `not_cycle_list`, bây giờ trong `gc_candidate` chỉ còn lại "rác", toàn bộ "rác" ở đây sẽ được đưa vào `hitlist` để chuẩn bị được "dọn dẹp" còn với những socket được đưa vào `not_cycle_list` trước đó sẽ được đưa lại vào `gc_inflight_list`:
+
+```cpp
+
+
+.......REDACTED
+
+
+	/* Now gc_candidates contains only garbage.  Restore original
+	 * inflight counters for these as well, and remove the skbuffs
+	 * which are creating the cycle(s).
+	 */
+	skb_queue_head_init(&hitlist);
+	list_for_each_entry(u, &gc_candidates, link)
+		scan_children(&u->sk, inc_inflight, &hitlist);
+
+	/* not_cycle_list contains those sockets which do not make up a
+	 * cycle.  Restore these to the inflight list.
+	 */
+	while (!list_empty(&not_cycle_list)) {
+		u = list_entry(not_cycle_list.next, struct unix_sock, link);
+		__clear_bit(UNIX_GC_CANDIDATE, &u->gc_flags);
+		list_move_tail(&u->link, &gc_inflight_list);
+	}
+
+
+.......REDACTED
+
+
+```
+
+Tiếp đến để phòng tránh [lỗi bảo mật CVE-2022-2602](https://seclists.org/oss-sec/2022/q4/57) đối với những socket thuộc `hitlist` mà là `io_uring` socket thì sẽ được đưa ra khỏi `hitlist`.
+
+```cpp
+
+
+.......REDACTED
+
+
+	/* We need io_uring to clean its registered files, ignore all io_uring
+	 * originated skbs. It's fine as io_uring doesn't keep references to
+	 * other io_uring instances and so killing all other files in the cycle
+	 * will put all io_uring references forcing it to go through normal
+	 * release.path eventually putting registered files.
+	 */
+	skb_queue_walk_safe(&hitlist, skb, next_skb) {
+		if (skb->scm_io_uring) {
+			__skb_unlink(skb, &hitlist);
+			skb_queue_tail(&skb->sk->sk_receive_queue, skb);
+		}
+	}
+
+
+.......REDACTED
+
+
+```
+
+Cuối cùng unix_gc sẽ tiến hành tiêu hủy rác trong `hitlist`, hoàn tất quá trình dọn rác của anh công nhân cần mẫn:
+
+```cpp
+
+
+.......REDACTED
+
+
+/* Here we are. Hitlist is filled. Die. */
+	__skb_queue_purge(&hitlist);
+
+
+.......REDACTED
+
+
+```
+
+# Kết thúc
+
+Trong lúc đang đọc và nghiên cứu CVE-2022-2602 thì mình tìm được [một article lwn.net nói về unix_gc](https://lwn.net/Articles/779472/), tuy nhiên mình chưa hiểu rõ, vì vậy mình quyết định đọc và debug code của unix_gc để có cái nhìn bao quát hơn cũng như tự bổ sung và note rõ ràng hơn một số chỗ mà mình không hiểu khi đọc [blog của Zero Project](https://googleprojectzero.blogspot.com/2022/08/the-quantum-state-of-linux-kernel.html) (được tặng kèm những cơn đau đầu và sự rối não @@). Hi vọng bài post của mình sẽ giúp mọi người hiểu rõ hơn về cơ chế dọn rác hay ho này của unix, nếu mình có sai sót ở đâu thì hãy góp ý giúp mình hiểu thêm. Từ đầu bài đến giờ thì mình cũng đã luyên thuyên khá nhiều, đã đến giờ anh công nhân dọn rác về nhà và ăn tất niên. Cảm ơn mọi người đã đọc bài. Happy new year 🥳🥳🥳
