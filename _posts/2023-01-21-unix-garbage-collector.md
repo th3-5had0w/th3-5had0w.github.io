@@ -799,6 +799,8 @@ Cuối cùng unix_gc sẽ tiến hành tiêu hủy rác trong `hitlist`, hoàn t
 
 # Kết thúc
 
+Nguồn gốc của post này là vì mình chậm hiểu, đây là mình khi đọc mãi một vấn đề vẫn chưa hiểu:
+
 ![](/assets/peek-a-cry.png)
 
 Trong lúc đang đọc và nghiên cứu CVE-2022-2602 thì mình tìm được [một article lwn.net nói về unix_gc](https://lwn.net/Articles/779472/), tuy nhiên mình chưa hiểu rõ, vì vậy mình quyết định đọc và debug code của unix_gc để có cái nhìn bao quát hơn cũng như tự bổ sung và note rõ ràng hơn một số chỗ mà mình không hiểu khi đọc [blog của Zero Project](https://googleprojectzero.blogspot.com/2022/08/the-quantum-state-of-linux-kernel.html) (được tặng kèm những cơn đau đầu và sự rối não @@). Hi vọng bài post của mình sẽ giúp mọi người hiểu rõ hơn về cơ chế dọn rác hay ho này của unix, nếu mình có sai sót ở đâu thì hãy góp ý giúp mình hiểu thêm. Từ đầu bài đến giờ thì mình cũng đã luyên thuyên khá nhiều, đã đến giờ anh công nhân dọn rác về nhà và ăn tất niên. Cảm ơn mọi người đã đọc bài. Happy new year 🥳🥳🥳
